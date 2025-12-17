@@ -45,6 +45,23 @@ HEADERS = {
 # ENUMS
 # ============================
 
+class IncidentTypeEnum(str, Enum):
+    """Incident type catalog items"""
+    fdr_issues = "FDR Issues"
+    fws_issues = "FWS Issues"
+    laptop_issues = "Laptop Issues"
+    outlook_issues = "Outlook Issues"
+    pips_issues = "PIPS Issues"
+    portal_access_missing = "Portal – Access Missing"
+    portal_logon_issue = "Portal – Logon Issue"
+    portal_other_issue = "Portal – Other Issue"
+    rsa_soft_token_setup = "RSA Soft Token Setup for New Phone"
+    windows_11_upgrade = "Windows 11 Upgrade – Question or Issue"
+    cisco_vpn_issues = "Cisco VPN Issues"
+    account_passwords_not_synced = "Account – Passwords Not Synchronized"
+    account_smart_card_blocked = "Account – Smart Card Blocked (PIV / CAC)"
+
+
 class UrgencyEnum(str, Enum):
     low = "Low"
     medium = "Medium"
@@ -86,7 +103,8 @@ class SourceEnum(str, Enum):
 class IncidentRequest(BaseModel):
     """Request model for creating an incident"""
     email: EmailStr = Field(..., description="Employee email address")
-    subject: str = Field(..., min_length=1, max_length=255, description="Incident subject")
+    incident_type: IncidentTypeEnum = Field(..., description="Type of incident being reported")
+    subject: Optional[str] = Field(None, min_length=1, max_length=255, description="Incident subject (auto-generated if not provided)")
     symptom: str = Field(..., min_length=1, description="Detailed symptom description")
     urgency: UrgencyEnum = Field(default=UrgencyEnum.medium, description="Urgency level")
     impact: ImpactEnum = Field(..., description="Business impact level")
@@ -98,12 +116,13 @@ class IncidentRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "email": "ashenafi.t.gurmu@rdg.peraton.com",
-                "subject": "Zoom Meeting Issue",
-                "symptom": "Unable to join scheduled Zoom meeting",
+                "incident_type": "Outlook Issues",
+                "subject": "Cannot send emails",
+                "symptom": "Cannot send emails from Outlook desktop client",
                 "urgency": "Medium",
                 "impact": "High",
                 "service": "Software",
-                "category": "Zoom",
+                "category": "Outlook",
                 "source": "Chat"
             }
         }
@@ -313,9 +332,17 @@ async def create_incident(incident: IncidentRequest):
         # Step 1: Look up employee RecId
         profile_recid = lookup_employee_recid(incident.email)
         
-        # Step 2: Prepare incident data
+        # Step 2: Generate subject combining user input + incident type
+        # Format: "user's subject - Incident Type" (e.g., "my outlook didn't work - Outlook Issues")
+        if incident.subject:
+            subject = f"{incident.subject} - {incident.incident_type.value}"
+        else:
+            # If no custom subject, just use incident type
+            subject = incident.incident_type.value
+        
+        # Step 3: Prepare incident data
         incident_data = {
-            "Subject": incident.subject,
+            "Subject": subject,  # Format: "user subject - Incident Type"
             "Symptom": incident.symptom,
             "Urgency": incident.urgency.value,
             "Impact": incident.impact.value,
