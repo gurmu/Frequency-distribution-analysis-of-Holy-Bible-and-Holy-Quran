@@ -72,6 +72,13 @@ class ServiceEnum(str, Enum):
     support = "Support"
 
 
+class SourceEnum(str, Enum):
+    chat = "Chat"
+    phone = "Phone"
+    self_service = "Self Service"
+    email = "Email"
+
+
 # ============================
 # REQUEST MODELS
 # ============================
@@ -85,6 +92,7 @@ class IncidentRequest(BaseModel):
     impact: ImpactEnum = Field(..., description="Business impact level")
     service: ServiceEnum = Field(..., description="Related service")
     category: CategoryEnum = Field(..., description="Issue category")
+    source: SourceEnum = Field(default=SourceEnum.chat, description="Incident source (automatically set to Chat)")
 
     class Config:
         json_schema_extra = {
@@ -95,7 +103,8 @@ class IncidentRequest(BaseModel):
                 "urgency": "Medium",
                 "impact": "High",
                 "service": "Software",
-                "category": "Zoom"
+                "category": "Zoom",
+                "source": "Chat"
             }
         }
 
@@ -312,7 +321,7 @@ async def create_incident(incident: IncidentRequest):
             "Impact": incident.impact.value,
             "Service": incident.service.value,
             "Category": incident.category.value,
-            "Source": "Incident Request"  # Identifies this as chat-created incident
+            "Source": incident.source.value  # Chat, Phone, Self Service, etc.
         }
         
         logger.info(f"Incident data: {incident_data}")
