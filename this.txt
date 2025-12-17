@@ -1,2 +1,0 @@
-This document lists the required Private Endpoints and Private DNS zones for deploying a multi-agent Azure-based RAG chatbot in Azure Government / GCC High.
-All services must be reachable without public endpoints, and DNS must resolve to private IPs only to avoid SSL and connectivity failures in a secure VPN environment.
