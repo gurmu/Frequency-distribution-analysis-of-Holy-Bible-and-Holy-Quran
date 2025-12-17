@@ -59,15 +59,7 @@ class ImpactEnum(str, Enum):
 
 
 class CategoryEnum(str, Enum):
-    computer = "Computer"
-    remediation = "Remediation"
-    ivanti = "Ivanti"
-    other = "Other"
     zoom = "Zoom"
-    pips = "PIPS"
-    audit = "Audit"
-    printer_scanner_fax = "PrinterScanner/Fax"
-    trainings = "Trainings"
     windows = "Windows"
     outlook = "Outlook"
     adobe_acrobat = "Adobe Acrobat"
@@ -98,12 +90,12 @@ class IncidentRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "email": "ashenafi.t.gurmu@rdg.peraton.com",
-                "subject": "Computer Access Issue",
-                "symptom": "Unable to access workstation",
+                "subject": "Zoom Meeting Issue",
+                "symptom": "Unable to join scheduled Zoom meeting",
                 "urgency": "Medium",
                 "impact": "High",
                 "service": "Software",
-                "category": "Computer"
+                "category": "Zoom"
             }
         }
 
@@ -319,7 +311,8 @@ async def create_incident(incident: IncidentRequest):
             "Urgency": incident.urgency.value,
             "Impact": incident.impact.value,
             "Service": incident.service.value,
-            "Category": incident.category.value
+            "Category": incident.category.value,
+            "Source": "Incident Request"  # Identifies this as chat-created incident
         }
         
         logger.info(f"Incident data: {incident_data}")
