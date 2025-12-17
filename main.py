@@ -59,11 +59,18 @@ class ImpactEnum(str, Enum):
 
 
 class CategoryEnum(str, Enum):
-    hardware = "Hardware"
-    software = "Software"
-    network = "Network"
-    vpn_client = "VPN Client"
+    computer = "Computer"
+    remediation = "Remediation"
+    ivanti = "Ivanti"
     other = "Other"
+    zoom = "Zoom"
+    pips = "PIPS"
+    audit = "Audit"
+    printer_scanner_fax = "PrinterScanner/Fax"
+    trainings = "Trainings"
+    windows = "Windows"
+    outlook = "Outlook"
+    adobe_acrobat = "Adobe Acrobat"
 
 
 class ServiceEnum(str, Enum):
@@ -91,12 +98,12 @@ class IncidentRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "email": "ashenafi.t.gurmu@rdg.peraton.com",
-                "subject": "VPN Connection Failure",
-                "symptom": "Unable to connect to corporate VPN",
+                "subject": "Computer Access Issue",
+                "symptom": "Unable to access workstation",
                 "urgency": "Medium",
                 "impact": "High",
                 "service": "Software",
-                "category": "VPN Client"
+                "category": "Computer"
             }
         }
 
