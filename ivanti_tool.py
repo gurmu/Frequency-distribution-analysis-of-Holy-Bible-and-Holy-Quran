@@ -90,6 +90,12 @@ def create_ivanti_tool_definition() -> Dict[str, Any]:
                         "type": "string",
                         "enum": ["Software", "Hardware", "Network", "Support"],
                         "description": "Related service"
+                    },
+                    "source": {
+                        "type": "string",
+                        "enum": ["Chat", "Phone", "Self Service", "Email"],
+                        "description": "Incident source",
+                        "default": "Chat"
                     }
                 },
                 "required": ["email", "incident_type", "symptom", "impact", "category", "service"]
@@ -139,7 +145,8 @@ class IvantiTool:
                 "urgency": arguments.get("urgency", "Medium"),
                 "impact": arguments["impact"],
                 "category": arguments["category"],
-                "service": arguments["service"]
+                "service": arguments["service"],
+                "source": arguments.get("source", "Chat")  # Default to Chat
             }
             
             # Add subject if provided (otherwise API will auto-generate)
