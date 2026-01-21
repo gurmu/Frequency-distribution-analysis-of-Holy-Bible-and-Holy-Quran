@@ -1,21 +1,27 @@
-environment = "dev"
-location    = "usgovarizona"
+environment         = "dev"
+location            = "usgovarizona"
+resource_group_name = "rg-itsm-multiagent-dev"
 
-# From Azure AI Foundry Project "Endpoints and keys"
-project_endpoint           = "https://<your-project>.cognitiveservices.azure.com/"
-azure_ai_projects_api_key  = "<your_ai_project_key>"
-model_deployment_name      = "gpt-4o"
+# Azure AI (from your AI Project)
+project_endpoint          = "https://<your-project-endpoint>/"
+azure_ai_projects_api_key = "<your-ai-projects-api-key>"
+model_deployment_name     = "gpt-4o"
+itsm_knowledge_agent_id   = "asst_xxxxxxxxxxxxxxxxxxxxx"
 
-# From your Agents page
-itsm_knowledge_agent_id = "asst_xxxxxxxxxxxxxxxxxxxxxx"
-investigation_agent_id  = "asst_yyyyyyyyyyyyyyyyyyyyyy"
-
-# From your Bot/App Registration
+# Teams bot app registration
 microsoft_app_id       = "<app-id-guid>"
 microsoft_app_password = "<client-secret>"
 
 # Images
-image_tag        = "latest"
-teams_bot_image  = "teams-bot"
-ivanti_api_image = "ivanti-api"
-nice_api_image   = "nice-api"
+teams_bot_image_name   = "teams-bot"
+ivanti_api_image_name  = "ivanti-api"
+nice_api_image_name    = "nice-api"
+image_tag              = "latest"
+
+# Exposure
+expose_public_fqdn = true
+
+tags = {
+  project = "itsm-multiagent"
+  owner   = "ashenafi"
+}
