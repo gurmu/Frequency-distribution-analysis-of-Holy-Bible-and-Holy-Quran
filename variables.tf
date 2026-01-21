@@ -1,121 +1,140 @@
-variable "location" {
-  description = "Azure region (Gov). Example: usgovvirginia / usgovarizona / usgoviowa"
-  type        = string
-  default     = "usgovvirginia"
-}
-
-variable "resource_group_name" {
-  description = "Resource group name"
-  type        = string
-  default     = "rg-itsm-multiagent-dev"
-}
-
 variable "environment" {
-  description = "Environment tag (dev/uat/prod)"
   type        = string
+  description = "Environment label (dev/test/prod)"
   default     = "dev"
 }
 
-variable "name_prefix" {
-  description = "Short prefix used for resource names (letters/numbers only recommended)"
+variable "location" {
   type        = string
-  default     = "itsm"
+  description = "Azure region (for Azure Gov you used USGov Arizona)"
+  default     = "usgovarizona"
 }
 
-# ACR name must be globally unique and 5-50 lowercase letters/numbers.
+variable "resource_group_name" {
+  type        = string
+  description = "Optional. If empty, Terraform generates rg name."
+  default     = ""
+}
+
 variable "acr_name" {
-  description = "ACR name (lowercase, 5-50 chars). Example: acritmdev12345"
   type        = string
+  description = "Optional. Must be globally unique. If empty, Terraform generates."
+  default     = ""
 }
 
-# Container image tags (in ACR)
-variable "teams_bot_image" {
-  description = "Image name:tag for teams-bot in ACR (repo:tag). Example: teams-bot:1.0.0"
+variable "acr_sku" {
   type        = string
-  default     = "teams-bot:latest"
+  default     = "Basic"
+}
+
+variable "key_vault_name" {
+  type        = string
+  default     = ""
+}
+
+variable "key_vault_public_network_access_enabled" {
+  type        = bool
+  default     = true
+}
+
+variable "key_vault_purge_protection_enabled" {
+  type        = bool
+  default     = false
+}
+
+variable "log_analytics_retention_days" {
+  type    = number
+  default = 30
+}
+
+variable "app_insights_retention_days" {
+  type    = number
+  default = 30
+}
+
+# -------------------------
+# Images
+# -------------------------
+variable "image_tag" {
+  type        = string
+  description = "Container tag to deploy"
+  default     = "latest"
+}
+
+variable "teams_bot_image" {
+  type        = string
+  default     = "teams-bot"
 }
 
 variable "ivanti_api_image" {
-  description = "Image name:tag for ivanti-api in ACR (repo:tag). Example: ivanti-api:1.0.0"
   type        = string
-  default     = "ivanti-api:latest"
+  default     = "ivanti-api"
 }
 
 variable "nice_api_image" {
-  description = "Image name:tag for nice-api in ACR (repo:tag). Example: nice-api:1.0.0"
   type        = string
-  default     = "nice-api:latest"
+  default     = "nice-api"
 }
 
-# External endpoints (your corporate endpoints)
-variable "ivanti_external_base_url" {
-  description = "Ivanti external base URL (corporate). Example: https://ivanti.company.mil"
-  type        = string
-  default     = ""
-}
+# -------------------------
+# Sizing
+# -------------------------
+variable "teams_bot_cpu"    { type = number, default = 1 }
+variable "teams_bot_memory" { type = number, default = 2 }
 
-variable "nice_external_base_url" {
-  description = "NICE external base URL (corporate). Example: https://api-cxone.niceincontact.com"
-  type        = string
-  default     = ""
-}
+variable "ivanti_api_cpu"    { type = number, default = 1 }
+variable "ivanti_api_memory" { type = number, default = 1.5 }
 
-# Azure AI / Agents (these are created manually in Azure AI Studio, then pasted here)
+variable "nice_api_cpu"    { type = number, default = 1 }
+variable "nice_api_memory" { type = number, default = 1.5 }
+
+# -------------------------
+# AI + Bot runtime configuration (secure)
+# -------------------------
 variable "project_endpoint" {
-  description = "Azure AI project endpoint URL"
   type        = string
-  default     = ""
+  description = "Azure AI Foundry Project Endpoint URL"
+  sensitive   = true
 }
 
 variable "azure_ai_projects_api_key" {
-  description = "Azure AI Projects API Key"
   type        = string
+  description = "Azure AI Foundry API Key"
   sensitive   = true
-  default     = ""
 }
 
 variable "model_deployment_name" {
-  description = "Model deployment name (e.g., gpt-4o)"
   type        = string
+  description = "Model deployment name (e.g., gpt-4o)"
   default     = "gpt-4o"
 }
 
 variable "itsm_knowledge_agent_id" {
-  description = "Agent ID for ITSM knowledge agent"
   type        = string
-  default     = ""
+  sensitive   = true
 }
 
 variable "investigation_agent_id" {
-  description = "Agent ID for investigation agent"
   type        = string
-  default     = ""
+  sensitive   = true
 }
 
-# Teams bot app credentials (AAD app registration done manually)
 variable "microsoft_app_id" {
-  description = "Microsoft App (Client) ID for Teams bot"
-  type        = string
-  default     = ""
+  type      = string
+  sensitive = true
 }
 
 variable "microsoft_app_password" {
-  description = "Microsoft App Password/Secret for Teams bot"
-  type        = string
-  sensitive   = true
-  default     = ""
+  type      = string
+  sensitive = true
 }
 
-# Sizing (adjust if needed)
-variable "teams_cpu" { type = number, default = 1 }
-variable "teams_mem" { type = number, default = 2 }
-
-variable "api_cpu"   { type = number, default = 1 }
-variable "api_mem"   { type = number, default = 1.5 }
-
-# DNS labels must be unique within the region; we append a random suffix.
-variable "dns_label_prefix" {
-  description = "DNS label prefix for ACI public FQDNs"
-  type        = string
-  default     = "itsm"
+# -------------------------
+# Tags
+# -------------------------
+variable "tags" {
+  type = map(string)
+  default = {
+    app = "itsm-multiagent"
+  }
 }
