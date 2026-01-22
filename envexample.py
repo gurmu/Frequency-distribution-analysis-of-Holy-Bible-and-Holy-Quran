@@ -1,0 +1,4 @@
+$env:AZSEARCH_ENDPOINT="https://itsmmulti.search.azure.us"
+$env:AZSEARCH_ADMIN_KEY="<PASTE ADMIN KEY HERE>"
+$env:AZURE_STORAGE_CONNECTION_STRING="<PASTE STORAGE CONN STRING HERE>"
+python .\indexer.py
