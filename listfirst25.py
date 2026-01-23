@@ -1,0 +1,1 @@
+dbutils.fs.ls(DST_ROOT)[:25]
