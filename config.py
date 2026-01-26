@@ -1,38 +1,43 @@
-# Databricks notebook - Option 1 (PDF multimodal)
-
 from pyspark.sql import functions as F, types as T
 import re, hashlib
 
-# ---------- UC / Hive targets ----------
 CATALOG = "hive_metastore"
 SCHEMA  = "itsm"
-
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
 
-# ---------- Azure Gov Storage ----------
-ACCOUNT       = "stitsmdevz33lh8"                 # from your portal screenshot
-DFS_ENDPOINT  = "dfs.core.usgovcloudapi.net"
-BLOB_ENDPOINT = "blob.core.usgovcloudapi.net"
+# ---- Azure Gov storage endpoints ----
+ACCOUNT      = "stitsmdevz33lh8"
+DFS_ENDPOINT = "dfs.core.usgovcloudapi.net"      # abfss endpoint
+BLOB_ENDPOINT= "blob.core.usgovcloudapi.net"     # https endpoint
 
-PDF_CONTAINER = "pdfitsm"                         # your container with ~120 PDFs
-IMG_CONTAINER = "itsmimages"                      # your empty container for images
+PDF_CONTAINER = "pdfitsm"        # has your ~120 PDFs
+IMG_CONTAINER = "itsmimages"     # empty now; we will populate extracted images here
 
-# ABFSS roots (NOTE: end with '/')
+# ---- IMPORTANT: use your Access Key "key1" ----
+# Prefer secret scope:
+# STORAGE_KEY = dbutils.secrets.get(scope="YOUR_SCOPE", key="key1")
+
+# If you temporarily paste it (not recommended), ensure .strip() at least:
+STORAGE_KEY = "<PASTE_KEY1_HERE>".strip()
+
+# This is the key fix for your repeated Bronze error:
+spark.conf.set(f"fs.azure.account.key.{ACCOUNT}.{DFS_ENDPOINT}", STORAGE_KEY)
+
+# ---- ABFSS roots (must end with /) ----
 PDF_ROOT = f"abfss://{PDF_CONTAINER}@{ACCOUNT}.{DFS_ENDPOINT}/"
 IMG_ROOT = f"abfss://{IMG_CONTAINER}@{ACCOUNT}.{DFS_ENDPOINT}/"
 
 print("PDF_ROOT:", PDF_ROOT)
 print("IMG_ROOT:", IMG_ROOT)
 
-# ---------- Helpers ----------
 def abfss_to_https(abfss_path: str) -> str:
     """
-    Convert: abfss://container@account.dfs.core.usgovcloudapi.net/folder/file.pdf
-    To:      https://account.blob.core.usgovcloudapi.net/container/folder/file.pdf
+    abfss://container@account.dfs.core.usgovcloudapi.net/folder/file.pdf
+    -> https://account.blob.core.usgovcloudapi.net/container/folder/file.pdf
     """
     if not abfss_path:
         return None
-    m = re.match(r"^abfss://([^@]+)@([^.]+)\.dfs\.core\.usgovcloudapi\.net/(.+)$", abfss_path)
+    m = re.match(r"abfss://([^@]+)@([^.]+)\.dfs\.core\.usgovcloudapi\.net/(.+)", abfss_path)
     if not m:
         return None
     container, account, key = m.groups()
