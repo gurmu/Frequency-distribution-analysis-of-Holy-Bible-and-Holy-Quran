@@ -1,113 +1,104 @@
-def clean_text(s: str) -> str:
-    if not s:
-        return None
-    # collapse whitespace
-    s = re.sub(r"\s+", " ", s).strip()
-    return s if s else None
-
-clean_text_udf = F.udf(lambda x: clean_text(x), T.StringType())
-
-silver_pages = (
-    spark.table(f"{CATALOG}.{SCHEMA}.bronze_pdf_pages")
+silver_pdf_pages = (
+    spark.table(f"{CATALOG}.{SCHEMA}.bronze_pdf_pages").alias("p")
       .join(
-          spark.table(f"{CATALOG}.{SCHEMA}.bronze_pdf_bin").select("doc_id", "path", "file_name"),
+          spark.table(f"{CATALOG}.{SCHEMA}.bronze_pdf_bin").select("doc_id","path","file_name").alias("b"),
           on="doc_id",
           how="left"
       )
-      .withColumn("page_text_clean", clean_text_udf(F.col("page_text_raw")))
-      .withColumn("pdf_abfss_path", F.col("path"))
-      .withColumn("pdf_url", F.udf(abfss_to_https, T.StringType())(F.col("path")))
-      .select("doc_id", "file_name", "page_num", "page_text_clean", "pdf_abfss_path", "pdf_url")
+      .withColumn("pdf_url", abfss_to_https_udf(F.col("path")))
+      .withColumn("page_text_clean", F.trim(F.regexp_replace(F.col("page_text_raw"), r"\s+", " ")))
+      .drop("page_text_raw")
 )
 
-(silver_pages.write.mode("overwrite")
- .option("mergeSchema", "true")
+(silver_pdf_pages.write.mode("overwrite")
+ .option("mergeSchema","true")
  .format("delta")
  .saveAsTable(f"{CATALOG}.{SCHEMA}.silver_pdf_pages"))
+
+display(spark.table(f"{CATALOG}.{SCHEMA}.silver_pdf_pages").limit(10))
 
 #################################persist images to itsmimages container (and store URLs)############################################
 
 
-import os, tempfile
+from pyspark.sql import Row
 
-def write_bytes_to_abfss(abfss_path: str, b: bytes):
+def write_images_partition(rows):
     """
-    Write bytes to ABFSS by writing a local temp file then copying.
+    rows: iterator of Row(doc_id,page_num,image_id,image_kind,image_name,image_mime,image_bytes,...)
     """
-    if not abfss_path or b is None:
-        return
-    local_dir = "/dbfs/tmp/pdf_mm"
-    os.makedirs(local_dir, exist_ok=True)
+    jvm = spark._jvm
+    conf = spark._jsc.hadoopConfiguration()
+    fs = jvm.org.apache.hadoop.fs.FileSystem.get(conf)
 
-    # unique local temp name
-    local_path = os.path.join(local_dir, sha256_str(abfss_path) + ".bin")
-    with open(local_path, "wb") as f:
-        f.write(b)
+    for r in rows:
+        doc_id    = r["doc_id"]
+        page_num  = int(r["page_num"])
+        image_id  = r["image_id"]
+        kind      = r["image_kind"]
+        name      = r["image_name"]
+        b         = r["image_bytes"]
 
-    # copy to target
-    dbutils.fs.cp("file:" + local_path, abfss_path, True)
+        if b is None:
+            continue
 
-def get_ext_from_mime(mime: str, fallback="bin"):
-    if mime == "image/png":
-        return "png"
-    if mime == "image/jpeg":
-        return "jpg"
-    return fallback
+        # Choose extension from name (fallback png)
+        ext = "png"
+        m = re.search(r"\.([a-zA-Z0-9]+)$", name or "")
+        if m:
+            ext = m.group(1).lower()
 
-# We'll create a Pandas UDF to write images and return their paths.
-out_schema = T.StructType([
-    T.StructField("doc_id", T.StringType()),
-    T.StructField("page_num", T.IntegerType()),
-    T.StructField("image_id", T.StringType()),
-    T.StructField("image_kind", T.StringType()),
-    T.StructField("image_abfss_path", T.StringType()),
-    T.StructField("image_url", T.StringType()),
-])
+        if kind == "page_render":
+            # enforce standard page naming
+            out_key = f"{doc_id}/page_render/page_{page_num:04d}.png"
+        else:
+            out_key = f"{doc_id}/embedded/p{page_num:04d}_{image_id}.{ext}"
 
-def persist_images_map(pdf_iter):
-    for batch in pdf_iter:
-        out = []
-        for _, r in batch.iterrows():
-            doc_id = r["doc_id"]
-            page_num = int(r["page_num"])
-            image_id = r["image_id"]
-            image_kind = r["image_kind"]
-            mime = r["image_mime"]
-            b = r["image_bytes"]
+        out_abfss = IMG_ROOT + out_key  # IMG_ROOT already ends with '/'
 
-            ext = get_ext_from_mime(mime, "bin")
+        path = jvm.org.apache.hadoop.fs.Path(out_abfss)
+        # idempotent: overwrite if exists
+        stream = fs.create(path, True)
 
-            if image_kind == "page_render":
-                # deterministic rendered page name
-                rel = f"{doc_id}/page_{page_num:04d}.png"
-            else:
-                # embedded
-                rel = f"{doc_id}/embedded/p{page_num:04d}_{image_id}.{ext}"
+        # write bytes
+        stream.write(bytearray(b))
+        stream.close()
 
-            image_abfss = f"{IMG_BASE_DIR}/{rel}"
-            try:
-                write_bytes_to_abfss(image_abfss, b)
-                image_https = abfss_to_https(image_abfss)
-            except Exception:
-                image_https = None  # don't fail the whole batch
+# Execute the distributed write
+bronze_img_df = spark.table(f"{CATALOG}.{SCHEMA}.bronze_pdf_images")
+bronze_img_df.rdd.foreachPartition(write_images_partition)
 
-            out.append({
-                "doc_id": doc_id,
-                "page_num": page_num,
-                "image_id": image_id,
-                "image_kind": image_kind,
-                "image_abfss_path": image_abfss,
-                "image_url": image_https
-            })
-        yield pd.DataFrame(out)
 
-bronze_img_df = spark.table(f"{CATALOG}.{SCHEMA}.bronze_pdf_images").select(
-    "doc_id", "page_num", "image_id", "image_kind", "image_mime", "image_bytes"
+##########################################Build silver_pdf_images (paths + https links)#####################################
+
+silver_pdf_images = (
+    spark.table(f"{CATALOG}.{SCHEMA}.bronze_pdf_images").alias("i")
+      .join(
+          spark.table(f"{CATALOG}.{SCHEMA}.bronze_pdf_bin").select("doc_id","path","file_name").alias("b"),
+          on="doc_id",
+          how="left"
+      )
+      .withColumn("pdf_url", abfss_to_https_udf(F.col("path")))
+      .withColumn(
+          "image_abfss_path",
+          F.when(
+              F.col("image_kind") == F.lit("page_render"),
+              F.concat(F.lit(IMG_ROOT), F.col("doc_id"), F.lit("/page_render/page_"),
+                       F.lpad(F.col("page_num").cast("string"), 4, "0"), F.lit(".png"))
+          ).otherwise(
+              F.concat(F.lit(IMG_ROOT), F.col("doc_id"), F.lit("/embedded/p"),
+                       F.lpad(F.col("page_num").cast("string"), 4, "0"),
+                       F.lit("_"), F.col("image_id"), F.lit("."),
+                       F.regexp_extract(F.col("image_name"), r"\.([A-Za-z0-9]+)$", 1))
+          )
+      )
+      .withColumn("image_url", abfss_to_https_udf(F.col("image_abfss_path")))
+      # optional: drop bytes in silver to avoid large storage
+      .drop("image_bytes")
 )
 
-silver_images = bronze_img_df.mapInPandas(persist_images_map, schema=out_schema)
-
-(silver_images.write.mode("overwrite")
- .option("mergeSchema", "true")
+(silver_pdf_images.write.mode("overwrite")
+ .option("mergeSchema","true")
  .format("delta")
  .saveAsTable(f"{CATALOG}.{SCHEMA}.silver_pdf_images"))
+
+display(spark.table(f"{CATALOG}.{SCHEMA}.silver_pdf_images").limit(10))
